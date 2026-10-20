@@ -115,8 +115,7 @@ How to read this:
 - **Overfitting and unstable validation.** Training accuracy is 97.5% against 80% validation, and the validation loss (6.9) is very high with validation accuracy bouncing between 77% and 90% across epochs. The 30-image validation set is too small to trust epoch-to-epoch.
 - **Sample only.** These results come from the 299-image sample committed here, run locally. The notebook also runs unchanged on the full 770-image Kaggle dataset (about 77 test images), which has not been run, so no full-dataset figure is claimed.
 
-The earlier version of the notebook reported 95.76% test accuracy (118 images). That figure is **not reliable**: it oversampled before splitting, so the same image could appear in both training and test data. `Monkeypox.pdf` is an export of that earlier run and is out of date.
-
+The earlier version of the notebook reported 95.76% test accuracy (118 images). That figure is **not reliable**: it oversampled before splitting, so the same image could appear in both training and test data.
 ### What changed from the first version
 
 - **Leakage fixed.** The split now happens before balancing, and only the training set is oversampled.
