@@ -1,27 +1,22 @@
-# Full 770-image evaluation protocol
+# Reproducibility and dataset integrity
 
-The current notebook's **90.00% test accuracy (27/30)** is from a 299-image sample, not the full 770-image Kaggle collection. The historical 95.76% result was affected by oversampling before splitting and must not be reused.
+This repository documents a VGG16 transfer-learning experiment on a **299-image four-class sample**. The reported disjoint test split has 30 images, with 27 correct (90.0%; approximate 95% Wilson interval 74–96%). This is a small-sample research result and not evidence of clinical utility.
 
-## Before running
+## Implemented safeguards
 
-On Kaggle attach the exact `Monkeypox Skin Image Dataset` with four folders: `Chickenpox`, `Measles`, `Monkeypox`, `Normal`. Confirm the expected class counts: 107, 91, 279, 293 (770 total). The notebook automatically points at its Kaggle directory if present; confirm `DATA_DIR` and the printed counts before training.
+- Stratified train/validation/test splitting happens before any oversampling.
+- Only the training images are oversampled and augmented.
+- VGG16-specific preprocessing and a stable class order are used for all splits.
+- The notebook reports a classification report and confusion matrix on the held-out sample.
 
-Audit the dataset:
+## Dataset audit
 
 ```bash
-python audit_dataset.py "/path/to/Monkeypox Skin Image Dataset" --out audit_report.json
+python audit_dataset.py . --out audit_report.json
 ```
 
-This finds byte-identical images but **cannot verify patient-level independence** or detect all perceptual duplicates.
+The read-only SHA-256 audit flags byte-identical files, including cross-class collisions. It cannot identify patient-level overlap, near-duplicate lesions, or correlated image acquisition.
 
-## Full run checklist
+## Interpretation
 
-1. Freeze an original-image stratified split with seed 42 **before** any rebalancing.
-2. Check that no path appears in more than one split and investigate hash/perceptual duplicates and patient identity where available.
-3. Apply oversampling and random augmentations to **training only**.
-4. Fit the documented VGG16 classifier on the full 770 images using the notebook and record software versions.
-5. Evaluate untouched validation and test sets; save class mapping, counts, confusion matrix and classification report.
-6. Report test accuracy with correct numerator/denominator, per-class recall, macro-F1 and a confidence interval.
-7. Repeat with different seeds or cross-validation for a stability estimate. Do not compare two models using the test set for hyperparameter selection.
-
-No 770-image result is claimed until the full notebook actually runs and its outputs are archived. This is a research classifier, not a validated medical diagnostic system.
+The previous 95.76% result was affected by pre-split oversampling and is not a reliable measurement. The only supported outcome in the current repository is the corrected 299-image sample experiment. The separate 770-image source count describes dataset provenance, not an evaluated performance claim.
