@@ -1,6 +1,6 @@
 # Monkeypox-Classification
 
-Four-class skin-lesion image classifier that separates **Monkeypox**, **Measles**, **Chickenpox** and **Normal** skin, built with transfer learning on a frozen **VGG16** (ImageNet weights) in TensorFlow/Keras. A texture-guided **DenseNet-121** extension is documented as a proposed (not yet implemented) architecture below.
+Four-class skin-lesion image classifier that separates **Monkeypox**, **Measles**, **Chickenpox** and **Normal** skin, built with transfer learning on a frozen **VGG16** (ImageNet weights) in TensorFlow/Keras. The implemented architecture is a frozen ImageNet VGG16 backbone with a trained classification head.
 
 ## Dataset
 
@@ -113,7 +113,7 @@ How to read this:
 
 - **Wide uncertainty.** With 30 test images, 90% has a 95% Wilson interval of roughly 74% to 96%. One image is 3.3 points. Chickenpox and Measles have only 6 and 4 test images, so their per-class numbers are very noisy.
 - **Overfitting and unstable validation.** Training accuracy is 97.5% against 80% validation, and the validation loss (6.9) is very high with validation accuracy bouncing between 77% and 90% across epochs. The 30-image validation set is too small to trust epoch-to-epoch.
-- **Sample only.** These results come from the 299-image sample committed here, run locally. The notebook also runs unchanged on the full 770-image Kaggle dataset (about 77 test images), which has not been run, so no full-dataset figure is claimed.
+- **Sample only.** These results come from the 299-image sample committed here. They cannot be generalized to the wider dataset or to clinical deployment.
 
 The earlier version of the notebook reported 95.76% test accuracy (118 images). That figure is **not reliable**: it oversampled before splitting, so the same image could appear in both training and test data.
 ### What changed from the first version
@@ -126,12 +126,12 @@ The earlier version of the notebook reported 95.76% test accuracy (118 images). 
 
 ### Remaining limitations
 
-- **Small test set.** 30 images on the sample (about 77 on the full dataset); one extra mistake moves accuracy by 3.3 points (1.3 on the full dataset).
+- **Small test set.** 30 test images; one extra mistake moves accuracy by 3.3 percentage points.
 - **Single split, no cross-validation or confidence interval.**
 - **Possible near-duplicates.** Different files showing the same lesion or patient could still straddle splits; the dataset has no patient IDs to check this.
 - **Not a diagnostic tool.** This is a research/learning project, not validated for clinical use.
 
-## Proposed architecture: texture-guided DenseNet-121
+## Archived design concept: texture-guided DenseNet-121
 
 > **Status: proposed design, not implemented.** The notebook above trains VGG16 only. This section describes the intended extension; no code or results exist for it yet.
 
@@ -161,7 +161,7 @@ The earlier version of the notebook reported 95.76% test accuracy (118 images). 
 | "Fully connected layer", "Output" | Fully connected softmax (4 classes), class probabilities |
 | Photo of a person's hands as the input | Generic input box (no patient image in the diagram) |
 
-**To make this real,** the notebook would need: DWT/LBP texture maps computed per image and resized to 7 x 7; a DenseNet-121 base with `densenet.preprocess_input`; a custom Keras fusion/attention block; and the same leak-free split and evaluation as above, so the result can be compared fairly with the VGG16 baseline.
+**Status:** this is design documentation only and is not part of the evaluated VGG16 classifier.
 
 ## Running it
 
