@@ -91,9 +91,31 @@ Only the final `Dense(4)` layer is trained. Parameter counts (computed from the 
 
 ### Results
 
-**Pending re-run.** The corrected notebook has not been executed since the fixes below, so this repo does not report new accuracy figures. Run it on Kaggle with the dataset attached and copy the printed train, validation and test scores here.
+Leak-free run of the corrected notebook on the **299-image sample in this repo** (not the full 770-image Kaggle dataset). Split sizes: 239 train (before balancing), 30 validation, 30 test.
 
-The earlier version of the notebook reported 95.76% test accuracy (118 images), but that figure is **not reliable**: it oversampled before splitting, so the same image could appear in both training and test data. Expect the corrected, leak-free number to be lower. `Monkeypox.pdf` is an export of that earlier run and is out of date.
+| Split | Loss | Accuracy |
+|---|---|---|
+| Train | 0.1449 | 97.50% |
+| Validation (30 images) | 6.9146 | 80.00% |
+| Test (30 images) | 0.5739 | 90.00% (27 of 30) |
+
+Test-set classification report:
+
+| Class | Precision | Recall | F1 | Support |
+|---|---|---|---|---|
+| Chickenpox | 0.667 | 1.000 | 0.800 | 6 |
+| Measles | 1.000 | 0.750 | 0.857 | 4 |
+| Monkeypox | 1.000 | 0.900 | 0.947 | 10 |
+| Normal | 1.000 | 0.900 | 0.947 | 10 |
+| Macro avg | 0.917 | 0.887 | 0.888 | 30 |
+
+How to read this:
+
+- **Wide uncertainty.** With 30 test images, 90% has a 95% Wilson interval of roughly 74% to 96%. One image is 3.3 points. Chickenpox and Measles have only 6 and 4 test images, so their per-class numbers are very noisy.
+- **Overfitting and unstable validation.** Training accuracy is 97.5% against 80% validation, and the validation loss (6.9) is very high with validation accuracy bouncing between 77% and 90% across epochs. The 30-image validation set is too small to trust epoch-to-epoch.
+- **Full-dataset run still to do.** A run on all 770 images (about 77 test images) will give a more reliable figure; it will be added here when available.
+
+The earlier version of the notebook reported 95.76% test accuracy (118 images). That figure is **not reliable**: it oversampled before splitting, so the same image could appear in both training and test data. `Monkeypox.pdf` is an export of that earlier run and is out of date.
 
 ### What changed from the first version
 
@@ -105,7 +127,7 @@ The earlier version of the notebook reported 95.76% test accuracy (118 images), 
 
 ### Remaining limitations
 
-- **Small test set.** About 77 images (10% of 770); one extra mistake moves accuracy by more than 1 point.
+- **Small test set.** 30 images on the sample (about 77 on the full dataset); one extra mistake moves accuracy by 3.3 points (1.3 on the full dataset).
 - **Single split, no cross-validation or confidence interval.**
 - **Possible near-duplicates.** Different files showing the same lesion or patient could still straddle splits; the dataset has no patient IDs to check this.
 - **Not a diagnostic tool.** This is a research/learning project, not validated for clinical use.
