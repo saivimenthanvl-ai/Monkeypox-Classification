@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 960" width="860" height="960" font-family="Arial, Helvetica, sans-serif" font-size="14">
+  <title>Proposed architecture: DenseNet-121 with wavelet/LBP texture-guided attention</title>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#222"/>
+    </marker>
+  </defs>
+  <rect width="860" height="960" fill="#ffffff"/>
+
+  <!-- left brackets -->
+  <path d="M62,120 q-14,0 -14,14 v225 q0,14 -14,14 q14,0 14,14 v225 q0,14 14,14" fill="none" stroke="#222" stroke-width="1.5"/>
+  <text transform="translate(22,372) rotate(-90)" text-anchor="middle" font-weight="bold">Feature extraction and attention fusion</text>
+  <path d="M62,672 q-14,0 -14,14 v100 q0,14 -14,14 q14,0 14,14 v100 q0,14 14,14" fill="none" stroke="#222" stroke-width="1.5"/>
+  <text transform="translate(22,800) rotate(-90)" text-anchor="middle" font-weight="bold">Classifier</text>
+
+  <g transform="translate(70,0)" stroke="#222" stroke-width="1.5" fill="none">
+    <!-- input -->
+    <rect x="300" y="20" width="200" height="50" fill="#f3f3f3"/>
+    <text x="400" y="42" text-anchor="middle" fill="#222" stroke="none" font-weight="bold">Input image</text>
+    <text x="400" y="60" text-anchor="middle" fill="#222" stroke="none">224 x 224 x 3 (RGB)</text>
+
+    <!-- split -->
+    <path d="M400,70 V100 H210 V128" marker-end="url(#arr)"/>
+    <path d="M400,100 H590 V128" marker-end="url(#arr)"/>
+
+    <!-- texture branch -->
+    <rect x="90" y="130" width="240" height="84" fill="#eaf3ff"/>
+    <text x="210" y="154" text-anchor="middle" fill="#222" stroke="none" font-weight="bold">Texture extraction</text>
+    <text x="210" y="174" text-anchor="middle" fill="#222" stroke="none">Grayscale, then wavelet (DWT)</text>
+    <text x="210" y="192" text-anchor="middle" fill="#222" stroke="none">sub-bands + local binary pattern</text>
+    <path d="M210,214 V250" marker-end="url(#arr)"/>
+    <rect x="90" y="252" width="240" height="54" fill="#eaf3ff"/>
+    <text x="210" y="275" text-anchor="middle" fill="#222" stroke="none" font-weight="bold">Texture maps</text>
+    <text x="210" y="294" text-anchor="middle" fill="#222" stroke="none">resized to 7 x 7 x T</text>
+
+    <!-- CNN branch -->
+    <rect x="470" y="130" width="240" height="84" fill="#fff3e0"/>
+    <text x="590" y="154" text-anchor="middle" fill="#222" stroke="none" font-weight="bold">CNN backbone</text>
+    <text x="590" y="174" text-anchor="middle" fill="#222" stroke="none">DenseNet-121 (ImageNet weights)</text>
+    <text x="590" y="192" text-anchor="middle" fill="#222" stroke="none">convolutional base, no top</text>
+    <path d="M590,214 V250" marker-end="url(#arr)"/>
+    <rect x="470" y="252" width="240" height="54" fill="#fff3e0"/>
+    <text x="590" y="275" text-anchor="middle" fill="#222" stroke="none" font-weight="bold">CNN feature map F</text>
+    <text x="590" y="294" text-anchor="middle" fill="#222" stroke="none">7 x 7 x 1024</text>
+
+    <!-- concat -->
+    <path d="M210,306 V392 H376" marker-end="url(#arr)"/>
+    <path d="M520,306 V392 H424" marker-end="url(#arr)"/>
+    <circle cx="400" cy="392" r="24" fill="#ffffff"/>
+    <text x="400" y="397" text-anchor="middle" fill="#222" stroke="none" font-weight="bold">C</text>
+    <text x="432" y="430" text-anchor="start" fill="#222" stroke="none" font-size="12">channel concatenation</text>
+
+    <!-- attention path -->
+    <path d="M400,416 V458" transform="translate(0,-6)" marker-end="url(#arr)"/>
+    <rect x="300" y="456" width="200" height="40" fill="#f3f3f3"/>
+    <text x="400" y="481" text-anchor="middle" fill="#222" stroke="none">1 x 1 convolution</text>
+    <path d="M400,496 V524" marker-end="url(#arr)"/>
+    <rect x="300" y="526" width="200" height="40" fill="#f3f3f3"/>
+    <text x="400" y="551" text-anchor="middle" fill="#222" stroke="none">Sigmoid</text>
+    <path d="M400,566 V584" marker-end="url(#arr)"/>
+    <rect x="300" y="586" width="200" height="50" fill="#e8f7ea"/>
+    <text x="400" y="608" text-anchor="middle" fill="#222" stroke="none" font-weight="bold">Attention weights A</text>
+    <text x="400" y="626" text-anchor="middle" fill="#222" stroke="none">7 x 7 x 1024, values in (0, 1)</text>
+
+    <!-- multiply -->
+    <path d="M590,306 V573" marker-end="url(#arr)"/>
+    <path d="M500,611 H564" marker-end="url(#arr)"/>
+    <circle cx="590" cy="611" r="24" fill="#ffffff"/>
+    <text x="590" y="617" text-anchor="middle" fill="#222" stroke="none" font-weight="bold" font-size="18">x</text>
+    <text x="640" y="650" text-anchor="start" fill="#222" stroke="none" font-size="12">element-wise</text>
+    <text x="640" y="666" text-anchor="start" fill="#222" stroke="none" font-size="12">multiplication</text>
+
+    <!-- refined features -->
+    <path d="M590,635 V700" marker-end="url(#arr)"/>
+    <rect x="470" y="702" width="240" height="50" fill="#e8f7ea"/>
+    <text x="590" y="724" text-anchor="middle" fill="#222" stroke="none" font-weight="bold">Refined features F' = F x A</text>
+    <text x="590" y="742" text-anchor="middle" fill="#222" stroke="none">7 x 7 x 1024</text>
+
+    <!-- classifier -->
+    <path d="M590,752 V784" marker-end="url(#arr)"/>
+    <rect x="470" y="786" width="240" height="44" fill="#f3f3f3"/>
+    <text x="590" y="813" text-anchor="middle" fill="#222" stroke="none">Global average pooling (1024)</text>
+    <path d="M590,830 V858" marker-end="url(#arr)"/>
+    <rect x="470" y="860" width="240" height="44" fill="#f3f3f3"/>
+    <text x="590" y="887" text-anchor="middle" fill="#222" stroke="none">Fully connected, softmax (4)</text>
+    <path d="M590,904 V924" marker-end="url(#arr)"/>
+    <rect x="470" y="926" width="240" height="30" fill="#f3f3f3"/>
+    <text x="590" y="946" text-anchor="middle" fill="#222" stroke="none" font-weight="bold">Class probabilities</text>
+  </g>
+</svg>

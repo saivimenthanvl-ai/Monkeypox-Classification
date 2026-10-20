@@ -1,12 +1,12 @@
 # Monkeypox-Classification
 
-Four-class skin-lesion image classifier that separates **Monkeypox**, **Measles**, **Chickenpox** and **Normal** skin, built with transfer learning on a frozen **VGG16** (ImageNet weights) in TensorFlow/Keras.
+Four-class skin-lesion image classifier that separates **Monkeypox**, **Measles**, **Chickenpox** and **Normal** skin, built with transfer learning on a frozen **VGG16** (ImageNet weights) in TensorFlow/Keras. A texture-guided **DenseNet-121** extension is documented as a proposed (not yet implemented) architecture below.
 
 ## Dataset
 
-The notebook trains on the Kaggle dataset **Monkeypox Skin Image Dataset** (`/kaggle/input/monkeypoxskinimagedataset`), one folder per class. The image folders in this repo are a 299-image sample of it, so the numbers below are from the full dataset as counted by the notebook.
+The notebook trains on the Kaggle dataset **Monkeypox Skin Image Dataset** (`/kaggle/input/monkeypoxskinimagedataset`), one folder per class. The image folders in this repo are a 299-image sample of it.
 
-| Class | Images in notebook | Sample in this repo |
+| Class | Images in full dataset | Sample in this repo |
 |---|---|---|
 | Normal | 293 | 100 |
 | Monkeypox | 279 | 100 |
@@ -14,36 +14,38 @@ The notebook trains on the Kaggle dataset **Monkeypox Skin Image Dataset** (`/ka
 | Measles | 91 | 41 |
 | **Total** | **770** | **299** |
 
-The classes are imbalanced (Chickenpox and Measles together are about a quarter of the data), which is why the notebook rebalances them before splitting.
+The classes are imbalanced (Chickenpox and Measles together are about a quarter of the data), so the training set is rebalanced by oversampling. The validation and test sets are left untouched.
 
-## Architecture
+## Implemented model (`Monkeypox.ipynb`)
 
 ### End-to-end pipeline
 
 ```mermaid
 flowchart TD
     subgraph DATA["Data"]
-        A["Kaggle dataset<br/>Monkeypox Skin Image Dataset<br/>770 PNG images in 4 class folders"] --> B["get_data: walk folders<br/>DataFrame with file_path and labels"]
-        B --> C["Class counts<br/>Normal 293, Monkeypox 279<br/>Chickenpox 107, Measles 91"]
+        A["Kaggle dataset<br/>770 images in 4 class folders"] --> B["get_data: walk folders<br/>DataFrame of file_path and labels"]
     end
     subgraph PREP["Preparation"]
-        C --> D["Oversample with replacement<br/>to 293 per class = 1,172 rows"]
-        D --> E["Split 80 / 10 / 10, seed 42<br/>937 train, 117 val, 118 test"]
-        E --> F["ImageDataGenerator<br/>rescale 1/255, RGB, 224 x 224<br/>batch size 32"]
+        B --> C["Stratified split 80 / 10 / 10, seed 42<br/>on the original images"]
+        C --> D["Train: oversample minority classes<br/>to the largest class count"]
+        C --> E["Validation and test: untouched"]
+        D --> F["Train generator: VGG16 preprocess_input<br/>+ augmentation, 224 x 224, batch 32"]
+        E --> G["Eval generators: VGG16 preprocess_input only<br/>shuffle off"]
     end
     subgraph MODEL["Model"]
-        F --> G["VGG16, ImageNet weights<br/>conv base frozen"]
-        G --> H["Flatten"]
-        H --> I["Dense 4, softmax"]
+        F --> H["VGG16, ImageNet weights<br/>conv base frozen"]
+        H --> I["Flatten"]
+        I --> J["Dense 4, softmax"]
     end
     subgraph TRAIN["Training and evaluation"]
-        I --> J["Adam, categorical cross-entropy<br/>15 epochs"]
-        J --> K["Accuracy, confusion matrix,<br/>classification report"]
-        K --> L["Save monkeypox.h5"]
+        J --> K["Adam, categorical cross-entropy<br/>15 epochs"]
+        G --> L["Accuracy, confusion matrix,<br/>classification report on test set"]
+        K --> L
+        L --> M["Save monkeypox.keras"]
     end
 ```
 
-### Model
+### Network
 
 ```mermaid
 flowchart LR
@@ -53,7 +55,7 @@ flowchart LR
     FL --> OUT["Dense 4<br/>softmax"]
 ```
 
-Only the final `Dense(4)` layer is trained. Parameter counts below are computed from the architecture (the notebook does not print `model.summary()`):
+Only the final `Dense(4)` layer is trained. Parameter counts (computed from the architecture; the notebook also prints `model.summary()`):
 
 | Part | Parameters |
 |---|---|
@@ -61,83 +63,92 @@ Only the final `Dense(4)` layer is trained. Parameter counts below are computed 
 | Dense(4) head (trainable, 25,088 x 4 + 4) | 100,356 |
 | Total | 14,815,044 |
 
-## Methodology
+### Methodology
 
-1. **Load.** `get_data` walks the dataset folder and builds a DataFrame of `file_path` and `labels` (the folder name).
+1. **Load.** `get_data` reads one sub-folder per class into a DataFrame of `file_path` and `labels`.
 2. **Explore.** Class counts, a count plot, pie and donut charts, and a 4-images-per-class preview grid.
-3. **Balance.** Every class is sampled with replacement up to 293 images, giving 4 x 293 = 1,172 rows.
-4. **Split.** `train_test_split` with `random_state=42`: 80% train, then the remaining 20% halved into validation and test. Result: 937 / 117 / 118 images.
-5. **Generators.** `ImageDataGenerator(rescale=1/255)` with `flow_from_dataframe`, `target_size=(224, 224)`, RGB, categorical labels, batch size 32, `shuffle=False`.
+3. **Split first.** Stratified `train_test_split` (`random_state=42`): 80% train, then the remaining 20% halved into validation and test. An assertion checks that no file appears in more than one split.
+4. **Balance the training set only.** Minority classes are sampled with replacement up to the largest training class. Each repeated image gets different random augmentation.
+5. **Generators.** `ImageDataGenerator` with VGG16's own `preprocess_input`. Training adds rotation, flips, shear, zoom and shifts. Class order is fixed with `classes=['Chickenpox','Measles','Monkeypox','Normal']` and `class_indices` is printed.
 6. **Model.** VGG16 without its top, all layers frozen, then `Flatten` and `Dense(4, softmax)`.
-7. **Train.** Adam (default settings), categorical cross-entropy, accuracy metric, 15 epochs, validation on the validation generator.
-8. **Evaluate.** Loss and accuracy on train, validation and test; confusion matrix and classification report on the test set.
-9. **Export.** `monkeypox.h5` saved with the optimizer state (the file is not committed to this repo).
+7. **Train.** Adam (default settings), categorical cross-entropy, 15 epochs, validation on the validation generator.
+8. **Evaluate.** Loss and accuracy on train, validation and test; confusion matrix and classification report (with class names) on the test set.
+9. **Export.** `monkeypox.keras` is saved and a download link is shown (the model file is not committed to this repo).
 
 ### Hyperparameters
 
 | Setting | Value |
 |---|---|
 | Input size | 224 x 224 x 3 |
-| Pixel scaling | 1/255 |
+| Preprocessing | `vgg16.preprocess_input` |
+| Augmentation | Training only |
 | Batch size | 32 |
 | Epochs | 15 |
 | Optimizer / loss | Adam (defaults) / categorical cross-entropy |
 | Base network | VGG16, ImageNet weights, frozen |
 | Head | Flatten, Dense(4, softmax) |
-| Split / seed | 80 / 10 / 10, `random_state=42` |
+| Split / seed | 80 / 10 / 10 stratified, `random_state=42` |
 
-## Results
+### Results
 
-Values are read from the notebook's saved outputs.
+**Pending re-run.** The corrected notebook has not been executed since the fixes below, so this repo does not report new accuracy figures. Run it on Kaggle with the dataset attached and copy the printed train, validation and test scores here.
 
-| Split | Loss | Accuracy |
-|---|---|---|
-| Train | 0.0168 | 99.89% |
-| Validation | 0.1188 | 95.73% |
-| Test (118 images) | 0.1341 | 95.76% |
+The earlier version of the notebook reported 95.76% test accuracy (118 images), but that figure is **not reliable**: it oversampled before splitting, so the same image could appear in both training and test data. Expect the corrected, leak-free number to be lower. `Monkeypox.pdf` is an export of that earlier run and is out of date.
 
-Validation accuracy rose from 82.9% at epoch 1 to 96.6% at epochs 11 and 12 and finished at 95.7%.
+### What changed from the first version
 
-Test-set confusion matrix (rows = true class, columns = predicted; class indices 0 to 3):
+- **Leakage fixed.** The split now happens before balancing, and only the training set is oversampled.
+- **Correct preprocessing.** VGG16's `preprocess_input` replaces `rescale=1/255`.
+- **Augmentation is used.** The augmenting generator now feeds training (before, it was defined but unused).
+- **Explicit labels.** `classes=[...]` fixes the class order, and `class_indices` is printed and checked across splits.
+- **Cleanup.** Fixed the cell-0 `SyntaxError` (trailing comma in the import), the mismatched pie/donut labels, the `plt.asix` typo, an invalid colour code, the `%cd kaggle/working` export path, and removed the unused custom CNN and unused class weights. Plots now have axis labels and legends.
 
-|  | Pred 0 | Pred 1 | Pred 2 | Pred 3 |
-|---|---|---|---|---|
-| True 0 (26) | 25 | 1 | 0 | 0 |
-| True 1 (29) | 0 | 29 | 0 | 0 |
-| True 2 (24) | 1 | 0 | 22 | 1 |
-| True 3 (39) | 0 | 2 | 0 | 37 |
+### Remaining limitations
 
-| Class index | Precision | Recall | F1 | Support |
-|---|---|---|---|---|
-| 0 | 0.96 | 0.96 | 0.96 | 26 |
-| 1 | 0.91 | 1.00 | 0.95 | 29 |
-| 2 | 1.00 | 0.92 | 0.96 | 24 |
-| 3 | 0.97 | 0.95 | 0.96 | 39 |
-| Macro avg | 0.96 | 0.96 | 0.96 | 118 |
+- **Small test set.** About 77 images (10% of 770); one extra mistake moves accuracy by more than 1 point.
+- **Single split, no cross-validation or confidence interval.**
+- **Possible near-duplicates.** Different files showing the same lesion or patient could still straddle splits; the dataset has no patient IDs to check this.
+- **Not a diagnostic tool.** This is a research/learning project, not validated for clinical use.
 
-The notebook never prints `class_indices`. Keras normally orders classes alphabetically, so indices 0 to 3 are most likely Chickenpox, Measles, Monkeypox, Normal; verify with `test_ds.class_indices` before quoting per-class numbers.
+## Proposed architecture: texture-guided DenseNet-121
+
+> **Status: proposed design, not implemented.** The notebook above trains VGG16 only. This section describes the intended extension; no code or results exist for it yet.
+
+![Proposed architecture: DenseNet-121 with wavelet/LBP texture-guided attention](architecture_proposed.svg)
+
+**Idea.** Skin diseases such as monkeypox, measles and chickenpox differ in lesion texture (pustules, rashes, crusts) as well as colour and shape. A CNN backbone captures general visual features; hand-crafted texture descriptors are used to tell the network *where* texture matters.
+
+**How data flows.**
+
+1. **Input image.** A 224 x 224 RGB skin image enters two parallel branches.
+2. **Texture extraction (left).** The image is converted to grayscale, decomposed with a **discrete wavelet transform** (multi-scale sub-bands), and a **local binary pattern** (LBP) map is computed. The resulting texture maps are resized to the CNN feature-map size (7 x 7 x T, where T is the number of texture channels).
+3. **CNN backbone (right).** **DenseNet-121** with ImageNet weights, without its classification head, produces a feature map **F** of 7 x 7 x 1024.
+4. **Fusion.** The texture maps and **F** are joined by channel concatenation (the circle marked C). The original diagram used a "+" here; concatenation is the more precise choice because the two inputs have different channel counts. (Element-wise addition would require projecting both to the same number of channels first.)
+5. **Attention weights.** A **1 x 1 convolution** mixes the concatenated channels back to 1024 channels, and a **sigmoid** squashes the values into (0, 1), giving attention weights **A** with the same shape as **F**. (The original diagram labelled this "Conv(IxI)".)
+6. **Re-weighting.** **F** is multiplied element-wise by **A** to give refined features **F' = F x A**. Locations and channels where texture evidence is strong are emphasised; weak ones are suppressed.
+7. **Classifier.** **Global average pooling** reduces F' to a 1,024-vector, and a fully connected layer with **softmax** outputs probabilities for the four classes.
+
+**Corrections to the original sketch.**
+
+| Original | Corrected |
+|---|---|
+| Brace labelled "CNN feature map" around the texture branch, fusion and attention | "Feature extraction and attention fusion" (the brace covers more than the CNN feature map) |
+| "+" fusion node | Channel concatenation, with shapes shown |
+| "Conv(IxI)" | 1 x 1 convolution |
+| Attention weights looping back into the multiply node | One-way flow: F and A feed the multiply node, which outputs refined features F' |
+| Unlabelled arrows and boxes | Tensor shapes on every stage |
+| "Fully connected layer", "Output" | Fully connected softmax (4 classes), class probabilities |
+| Photo of a person's hands as the input | Generic input box (no patient image in the diagram) |
+
+**To make this real,** the notebook would need: DWT/LBP texture maps computed per image and resized to 7 x 7; a DenseNet-121 base with `densenet.preprocess_input`; a custom Keras fusion/attention block; and the same leak-free split and evaluation as above, so the result can be compared fairly with the VGG16 baseline.
 
 ## Running it
 
-The notebook is written for a Kaggle notebook with a GPU and the dataset attached. To run it elsewhere, set `data` in the second cell to a folder that contains one sub-folder per class (this repo's four image folders work as a small sample), and install:
+The notebook is written for a Kaggle notebook with a GPU and the dataset attached. To run it elsewhere, set `DATA_DIR` in the data-loading cell to a folder that contains one sub-folder per class named exactly `Chickenpox`, `Measles`, `Monkeypox`, `Normal` (this repo's four image folders work as a small sample), and install:
 
 ```bash
 pip install tensorflow pandas numpy scikit-learn seaborn matplotlib pillow
 ```
-
-## Known limitations
-
-These affect how far the reported accuracy can be trusted.
-
-- **Duplicate images across splits.** Oversampling with replacement happens before the train/validation/test split, so the 1,172 rows contain at most 770 distinct images and the same image can appear in both training and test. The validation and test accuracies are therefore likely optimistic. Splitting first and balancing only the training set avoids this.
-- **Test set is small.** With 118 images, one extra mistake moves accuracy by about 0.85 points.
-- **Augmentation is defined but unused.** `train_datagen` (rotation, flip, shear, zoom, shifts) is created, but `train_ds` is built from the plain `datagen`, so training runs without augmentation.
-- **Class weights are computed but never passed to `fit`.**
-- **Unused second model.** The small custom CNN (`model`, two Conv blocks and dense layers) is compiled but never trained; only the VGG16 model (`monkeypox`) is.
-- **Preprocessing mismatch.** VGG16's ImageNet weights expect `tf.keras.applications.vgg16.preprocess_input`; the notebook uses `rescale=1/255` instead.
-- **First cell does not parse.** `from tensorflow.keras.applications import VGG16,` ends with a trailing comma, which is a `SyntaxError`; the imports are repeated correctly in the third cell.
-- **Pie and donut chart labels are mismatched.** The labels are hard-coded as Monkeypox, Measles, Normal, Chickenpox, but `value_counts()` returns Normal, Monkeypox, Chickenpox, Measles, so the slices are mislabeled.
-- **Export cell.** `%cd kaggle/working` fails (the correct path is `/kaggle/working`) before the download link is created.
 
 ## License
 
